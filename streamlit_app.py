@@ -91,7 +91,7 @@ if st.button("Parse PDFs"):
         with st.spinner("Parsing PDFs"):
             for file in st.session_state.uploaded_files:
                 file_text_dict = clean_pdf_openai(file, file.name)
-                st.session_state.pdf_data[file] = file_text_dict
+                st.session_state.pdf_data[file.name] = file_text_dict
             json_file_name = fund_label+".json"
             with open(json_file_name, 'w') as fp:
                 json.dump(st.session_state.pdf_data, fp)
