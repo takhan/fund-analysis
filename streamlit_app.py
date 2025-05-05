@@ -60,7 +60,8 @@ uploaded_pdfs = st.file_uploader(
 )
 
 if uploaded_pdfs:
-    st.session_state.uploaded_files.extend(uploaded_pdfs)
+    if len(st.session_state.uploaded_files)==0:
+        st.session_state.uploaded_files.extend(uploaded_pdfs)
 
 fund_label = st.text_input(label="Enter the fund name", value="XYZ Ventures")
 
@@ -98,7 +99,7 @@ if st.button("Parse PDFs"):
             st.toast("PDFs Parsed")
 
 if st.button("Analyze Files"):
-    if not os.path.exists('stage_2_capital.csv'):
+    if len(st.session_state.uploaded_files)>0:  
         print(st.session_state.pdf_data)
         data_points_file = get_data_points()
         df = pd.read_excel(data_points_file)
@@ -157,10 +158,10 @@ if st.button("Analyze Files"):
         csv_file_name = fund_label+".csv"
         df.to_csv(csv_file_name, index=False)
         deduped_df = deduplicate_dataframe()
-        st.dataframe(deduped_df)
+        #st.dataframe(deduped_df)
         st.session_state.csv = convert_df(deduped_df)
         st.session_state.data_frame = deduped_df
-    else:
+    elif os.path.exists('stage_2_capital.csv'):
         loaded_df = pd.read_csv('stage_2_capital.csv')
         st.session_state.data_frame = loaded_df
         #deduped_df = deduplicate_dataframe()
