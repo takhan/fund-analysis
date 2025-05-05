@@ -109,7 +109,7 @@ def extract_info_from_pdf_openai(filename, items, doc_dict):
     print(item_string)
     #item_string = ", ".join(items)
     for page in doc_dict.keys():
-
+        
         prompt = (
             f"You are an analyst determining whether to invest in a VC fund and are looking through a document that is part of an investment prospectus the fund has provided."
             f"This text has been parsed from one page of the original pdf document.\n\n"
@@ -141,6 +141,77 @@ def extract_info_from_pdf_openai(filename, items, doc_dict):
                 toAdd["page"] = page
                 toAdd["filename"] = filename
                 results[datapointinfo.datapointnumber].append(toAdd)
+
+    return results
+
+def extract_info_openai_chunks(filename, items, doc_dict, pages_per_chunk: int = 3):
+    openai_client = OpenAI(api_key=st.session_state.openai_api_key)
+
+    class DataPointInfo(BaseModel):
+        datapointnumber: int
+        information: str
+        page: int
+
+    class PDFDataExtraction(BaseModel):
+        datapoints: list[DataPointInfo]
+
+    # Initialize all to empty lists
+    results = {st.session_state.item_to_index[itm]: [] for itm in items}
+    print(items)
+    print(results)
+    item_string = ""
+    for item in items:
+        item_string+= "Data Point Number: "+str(st.session_state.item_to_index[item])+" Data Point: "+item+".\n"
+    print(item_string)
+    #item_string = ", ".join(items)
+    total_pages = len(doc_dict.keys())
+    #for page in doc_dict.keys():
+    start = 0
+    end = min(start + pages_per_chunk, total_pages)
+    chunkDict = {}
+    for key in doc_dict.keys():
+        chunkDict[key] = doc_dict[key]
+        start+=1
+        if start == end:
+            doc_text = ""
+            for page in chunkDict.keys():
+                doc_text+= f"[{page} Document Text: {chunkDict[page]}]\n"
+            print("Doc Text: ")
+            print(doc_text)
+            prompt = (
+                f"You are an analyst determining whether to invest in a VC fund and are looking through a document that is part of an investment prospectus the fund has provided."
+                f"This text has been parsed from a subset of pages of the original pdf document. The text of each document is labeled with the page number it comes from.\n\n"
+                f"You are determining whether each of the following data points appears on the page, "
+                f"The data points are each numbered"
+                f"Convert the data into the given structure where each DataPoint info object contains a datapointnumber that is the number of the data point provided, information that is either the information found or N/A, and page that is the page number it comes from or 0 if not found.\n"
+                f"Data Points: {item_string}\n\n"
+                f"Document Text: {doc_text}"
+            )
+
+            response = openai_client.responses.parse(
+                model="gpt-4o",
+                input=[
+                    {
+                        "role": "system",
+                        "content": prompt,
+                    },
+                    {"role": "user", "content": "..."},
+                ],
+                text_format=PDFDataExtraction,
+            )
+            resp = response.output_parsed.datapoints
+            print(resp)
+            for datapointinfo in resp:
+                if datapointinfo.information != "N/A":
+                    toAdd = {}
+                    toAdd["data point"] = st.session_state.index_to_item[datapointinfo.datapointnumber]
+                    toAdd["value"] = datapointinfo.information
+                    toAdd["page"] = datapointinfo.page
+                    toAdd["filename"] = filename
+                    results[datapointinfo.datapointnumber].append(toAdd)
+            start+= pages_per_chunk
+            end = min(start + pages_per_chunk, total_pages)
+            chunkDict = {}
 
     return results
 

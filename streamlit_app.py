@@ -1,5 +1,5 @@
 import streamlit as st
-from document_parsing import extract_info_from_pdf, get_files, get_file_stream, get_data_points, extract_info_from_pdf_pagewise, clean_pdf_anthropic, clean_pdf_openai, extract_info_from_pdf_openai, process_group_with_openai
+from document_parsing import extract_info_openai_chunks, get_files, get_file_stream, get_data_points, extract_info_from_pdf_pagewise, clean_pdf_anthropic, clean_pdf_openai, extract_info_from_pdf_openai, process_group_with_openai
 import pandas as pd
 import boto3
 import os
@@ -30,6 +30,9 @@ if "uploaded_files" not in st.session_state:
 if "file_mapping" not in st.session_state:
     st.session_state.file_mapping = {"Stage 2 Capital":""}
 
+if "data_excel" not in st.session_state:
+    st.session_state.data_excel = None
+
 @st.cache_data
 def convert_df(df):
    return df.to_csv(index=False).encode('utf-8')
@@ -46,7 +49,12 @@ def deduplicate_dataframe():
 
 st.title("Fund Analysis")
 
+data_excel = st.file_uploader("Upload a new excel")
 
+if st.button("Update Excel"):
+    if data_excel:
+        st.session_state.data_excel = data_excel
+    st.toast("Excel Updated")
 
 st.subheader("View Existing Fund Files")
 st.selectbox("Pick from previously analyzed projects", options=["Stage 2 Capital"])
@@ -90,19 +98,33 @@ if st.button("Parse PDFs"):
             st.toast("PDFs Parsed")
     else:
         with st.spinner("Parsing PDFs"):
-            for file in st.session_state.uploaded_files:
-                file_text_dict = clean_pdf_openai(file, file.name)
-                st.session_state.pdf_data[file.name] = file_text_dict
             json_file_name = fund_label+".json"
-            with open(json_file_name, 'w') as fp:
-                json.dump(st.session_state.pdf_data, fp)
+            if not os.path.exists(json_file_name):
+                for file in st.session_state.uploaded_files:
+                    file_text_dict = clean_pdf_openai(file, file.name)
+                    st.session_state.pdf_data[file.name] = file_text_dict
+                
+                with open(json_file_name, 'w') as fp:
+                    json.dump(st.session_state.pdf_data, fp)
+            else:
+                try:
+                    with open(json_file_name, 'r') as json_file:
+                        st.session_state.pdf_data = json.load(json_file)
+                except FileNotFoundError:
+                    print(f"Error: File not found: {'parsed_text.json'}")
+                except json.JSONDecodeError:
+                    print(f"Error: Invalid JSON format in: {'parsed_text.json'}")
+
             st.toast("PDFs Parsed")
 
 if st.button("Analyze Files"):
     if len(st.session_state.uploaded_files)>0:  
         print(st.session_state.pdf_data)
-        data_points_file = get_data_points()
-        df = pd.read_excel(data_points_file)
+        if not st.session_state.data_excel:
+            data_points_file = get_data_points()
+            df = pd.read_excel(data_points_file)
+        else:
+            df = pd.read_excel(st.session_state.data_excel)
         items_full = df["Item"]
         items = []
         for item in items_full:
@@ -133,7 +155,7 @@ if st.button("Analyze Files"):
                     if len(items_to_check) == num_items:
                         print(items_to_check)
                         return_dict = extract_info_from_pdf_openai(file, items_to_check, st.session_state.pdf_data[file])
-                        #return_dict = extract_info_from_pdf_pagewise(file, items_to_check, st.session_state.pdf_data[file])
+                        #return_dict = extract_info_openai_chunks(file, items_to_check, st.session_state.pdf_data[file])
                         print(return_dict)
                         for key in return_dict.keys():
                             if len(return_dict[key])>0:
@@ -143,7 +165,7 @@ if st.button("Analyze Files"):
                     elif i==(item_length-1):
                         if len(items_to_check)>0:
                             return_dict = extract_info_from_pdf_openai(file, items_to_check, st.session_state.pdf_data[file])
-                            #return_dict = extract_info_from_pdf_pagewise(file, items_to_check, st.session_state.pdf_data[file])
+                            #return_dict = extract_info_openai_chunks(file, items_to_check, st.session_state.pdf_data[file])
                         print(return_dict)
                         for key in return_dict.keys():
                             if len(return_dict[key])>0:
