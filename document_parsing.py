@@ -276,22 +276,18 @@ def extract_info_from_pdf_pagewise(filename, items, doc_dict):
 
     return results
 
-def get_files():
+def get_files(bucket_name = "takhan-fund-analysis"):
     s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
     )
-
-    # Store bucket name
-    bucket_name = "takhan-fund-analysis"
-
     # Store contents of bucket
     objects_list = s3.list_objects_v2(Bucket=bucket_name).get("Contents")
     print(objects_list)
     return [file['Key'] for file in objects_list]
 
-def get_file_stream(file_name):
+def get_file_stream(file_name, bucket_name = "takhan-fund-analysis"):
     s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -299,7 +295,7 @@ def get_file_stream(file_name):
     )
 
     # Store bucket name
-    bucket_name = "takhan-fund-analysis"
+    #bucket_name = "takhan-fund-analysis"
     response = s3.get_object(Bucket=bucket_name, Key=file_name)
     file_stream = BytesIO(response['Body'].read())
     return file_stream
